@@ -1,3 +1,6 @@
+/*
+    This file handles system calls for semaphore operations
+*/
 #include "pm.h"
 #include <signal.h>
 #include <sys/time.h>
@@ -6,6 +9,23 @@
 #include "param.h"
 #include "mproc.h"
 #include "semaphore.h"
+
+#define semUpperLimit  1000000
+#define semLowerLimit -1000000
+/* Global variables */
+typedef struct pLIST{
+    struct mproc*  pCUR;
+    struct pLIST *next;
+}pLIST;
+
+typedef struct semaphore{
+    int    value;
+    pLIST *ProcessList;
+    int   plLEN;
+} semaphore;
+
+semaphore *semLIST[100];
+
 PUBLIC int do_seminit( ){
     int sem = m_in.m1_i1;
     int value = m_in.m2_i2;
@@ -53,6 +73,7 @@ PUBLIC int do_seminit( ){
         return ind;
     }
 }
+
 PUBLIC int do_semvalue(){
     int sem = m_in.m1_i1;
     printf ("do_semvalue sem: %d\n", sem);
@@ -64,19 +85,131 @@ PUBLIC int do_semvalue(){
         return -semLIST[sem]->value;
     }
 }
-PUBLIC int do_semup(){
-    printf("I am do_semup\n");
-    return(OK);
+
+PUBLIC int do_semfree(sem)
+int sem; {
+    printf("I'm semfree\n");
+    return 0;
 }
-PUBLIC int do_semdown(){
-    printf("I am do_semdown\n");
-    return(OK);
-}
-PUBLIC int do_semfree(){
+
+
+PUBLIC int do_semup() {
     int sem;
-    printf("I am do_semfree\n");
-    return(OK);
+    sem = m_in.m1_i1;
+
+    if (sem < 0 || sem >= 100) {
+        printf("EINVAL\n");
+        return EINVAL;
+    }
+
+    semaphore* thisSem = semLIST[sem];
+
+    if(thisSem->value == semUpperLimit)
+    { //check if the semaphore is already at the upper end of the allowed limit
+        printf("EOVERFLOW\n");
+        //figure out how to set an error
+        return 0;
+    }
+    else {
+        thisSem->value += 1;
+    }
+
+    if(thisSem->value <= 0)
+    {
+        /*
+            get the process at the beginning of the waiting list
+                and wake it up.
+        */
+        if(thisSem->ProcessList != NULL)
+        {
+            pLIST *tempNode = thisSem->ProcessList;
+
+            thisSem->ProcessList = thisSem->ProcessList->next;
+
+            // give signal to tempNode->pCUR to wake up;
+            tempNode->pCUR->mp_flags |= UNPAUSED;
+
+            //setreply
+
+            free(tempNode->pCUR);
+            free(tempNode);
+        }
+    }
+
+    return 1;   //return 1 on success
+}
+/*
+This call does UP on the semaphore whose identifier is passed. This call never blocks.
+ If there’s at least one process waiting on this semaphore, semup() causes one waiting
+  process to be awakened. The call returns 1 if successful, 0 otherwise.
+Note: while a semaphore can’t be initialized outside the range −1000≤value≤1000, it may 
+be incremented (or decremented) to a value outside this range, up to ±106. If the semup()
+ call would result in a value above 106, return 0 and set the error to EOVERFLOW.
+*/
+
+PUBLIC int do_semdown(sem) {
+    int sem;
+    sem = m_in.m1_i1;
+
+    if (sem < 0 || sem >= 100) {
+        printf("EINVAL\n");
+        return EINVAL;
+    }
+
+    semaphore* thisSem = semLIST[sem];
+
+    if(this->value == semLowerLimit)
+    { //check if the semaphore is already at the lower end of the allowed limit
+        printf("EOVERFLOW\n");
+        //set the error code to EOVERFLOW
+        return 0;
+    }
+    else {
+        thisSem->value -= 1;
+    }
+
+    if(thisSem->value < 0)
+    {
+        /* add the process id of the current process to the list of waiting processes
+            and put the process to sleep
+        */
+        pLIST* newPLnode = (pLIST*) malloc(sizeof(pLIST));
+        newPLnode->pCUR  = (struct mproc*)malloc(sizeof(struct mproc));
+        newPLnode->pCUR  = mp;
+        newPLnode->next  = NULL;
+
+        if(thisSem->ProcessList == NULL)
+        {
+            thisSem->ProcessList = newPLnode;
+        }
+        else
+        {
+            pLIST* existingLastNode = thisSem->ProcessList;
+
+            while(existingLastNode->next != NULL)
+            {
+                existingLastNode = existingLastNode->next;
+            }
+
+            existingLastNode->next = thisPLnode;
+        }
+
+        mp->mp_flags |= PAUSED;
+        setreply(who_p, SUSPEND);
+        sendreply();
+        //send signal to SUSPEND
+
+    }
+
+    return 1;   //return 1 on success
 }
 
-
-
+/*
+    This call does DOWN on the semaphore whose identifier is passed. If the semaphore 
+    value would go below zero, the call blocks until the value goes above zero again.
+    The call returns 1 if successful, 0 otherwise.
+    Note: while a semaphore can’t be initialized outside the range −1000≤value≤1000,
+    it may be decremented (or incremented) to a value outside this range, up to ±106.
+    If the semup() call would result in a value below -106, return 0 and set the error to EOVERFLOW.
+*/
+//in seminit, shouldn't plist-Next be set to null
