@@ -158,7 +158,7 @@ PUBLIC int do_semup() {
             // give signal to tempNode->pCUR to wake up;
             tempNode->pCUR->mp_flags |= UNPAUSED;
 
-            setreply(tempNode->pCUR->p)
+//            setreply(tempNode->pCUR->p)
 
             free(tempNode->pCUR);
             free(tempNode);
