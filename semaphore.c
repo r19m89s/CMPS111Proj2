@@ -1,29 +1,37 @@
 /*
     This file handles system calls for semaphore operations
 */
+
+
 #include "pm.h"
 #include <signal.h>
+#include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
-#include <stdlib.h>
 #include <minix/com.h>
+#include <errno.h>
 #include "param.h"
 #include "mproc.h"
-#include "semaphore.h"
 
 #define semUpperLimit  1000000
 #define semLowerLimit -1000000
+
+
 /* Global variables */
+
+
 typedef struct pLIST{
     struct mproc*  pCUR;
     struct pLIST *next;
 }pLIST;
+
 
 typedef struct semaphore{
     int    value;
     pLIST *ProcessList;
     int   plLEN;
 } semaphore;
+
 
 semaphore *semLIST[100];
 
@@ -34,6 +42,7 @@ PUBLIC int do_seminit( ){
     int ind;
     semaphore *semi;
     int blah = 0;
+    int retVAL = 0;
     int size = sizeof(semLIST)/sizeof(semaphore);
     if (size == 100){
        semi = semLIST[blah];
@@ -55,44 +64,61 @@ PUBLIC int do_seminit( ){
         return EEXIST;
     }
     else if (sem != 0){
-        semLIST[sem] = (semaphore*)malloc(sizeof(semaphore));
         semLIST[sem]->value = value;
-        semLIST[sem]->ProcessList = (pLIST*)malloc(sizeof(pLIST));
-        semLIST[sem]->ProcessList->pCUR = (struct mproc*)malloc(sizeof(struct mproc));
-        semLIST[sem]->ProcessList->next = (pLIST*)malloc(sizeof(pLIST));
         semLIST[sem]->plLEN = 0;
-        printf ("return sem\n");
-        return sem;
+        retVAL = sem;
     }else {
-        semLIST[ind] = (semaphore*)malloc(sizeof(semaphore));
         semLIST[ind]->value = value;
-        semLIST[ind]->ProcessList = (pLIST*)malloc(sizeof(pLIST));
-        semLIST[ind]->ProcessList->pCUR = (struct mproc*)malloc(sizeof(struct mproc));
-        semLIST[ind]->ProcessList->next = (pLIST*)malloc(sizeof(pLIST));
         semLIST[ind]->plLEN = 0;
-        printf("return ind\n");
-        return ind;
+        retVAL = ind;
     }
+    return retVAL;
 }
+
 
 PUBLIC int do_semvalue(){
     int sem = m_in.m1_i1;
-    printf ("do_semvalue sem: %d\n", sem);
+    if(&semLIST[sem] == NULL) return 0x8000000;
+    int val = semLIST[sem]->plLEN;
     int min =(-10 ^ 6);
     int max = (10 ^ 6);
-    if ((min <= sem)||(sem >= max)||(&semLIST[sem] == NULL)){
+    if ((val <= min)||(val >= max)){
         return 0x8000000;
     }else {
-        return -semLIST[sem]->value;
+        if (val < 0){
+            return -val;
+        }else {
+            return 0;
+        }
     }
 }
 
-PUBLIC int do_semfree(sem)
-int sem; {
-    printf("I'm semfree\n");
-    return 0;
+
+PUBLIC int do_semfree(){
+    int sem;
+    sem = m_in.m1_i1;
+    if (sem < -1000 || sem > 1000){
+        return 0;
+     }else if (&semLIST[sem] == NULL){
+         return 0;
+     }else {
+        if (semLIST[sem]->value > 0) return EBUSY;
+        else {
+            free ((semaphore*)semLIST[sem]->ProcessList);
+            return 1;
+        }
+    }
 }
 
+
+/*
+This call does UP on the semaphore whose identifier is passed. This call never blocks.
+ If there’s at least one process waiting on this semaphore, semup() causes one waiting
+  process to be awakened. The call returns 1 if successful, 0 otherwise.
+Note: while a semaphore can’t be initialized outside the range −1000≤value≤1000, it may 
+be incremented (or decremented) to a value outside this range, up to ±106. If the semup()
+ call would result in a value above 106, return 0 and set the error to EOVERFLOW.
+*/
 
 PUBLIC int do_semup() {
     int sem;
@@ -121,6 +147,8 @@ PUBLIC int do_semup() {
             get the process at the beginning of the waiting list
                 and wake it up.
         */
+        thisSem->plLEN -= 1;
+
         if(thisSem->ProcessList != NULL)
         {
             pLIST *tempNode = thisSem->ProcessList;
@@ -130,23 +158,18 @@ PUBLIC int do_semup() {
             // give signal to tempNode->pCUR to wake up;
             tempNode->pCUR->mp_flags |= UNPAUSED;
 
-            //setreply
+            setreply(tempNode->pCUR->p)
 
-//            free(tempNode->pCUR);
-//            free(tempNode);
+            free(tempNode->pCUR);
+            free(tempNode);
         }
     }
 
     return 1;   //return 1 on success
 }
-/*
-This call does UP on the semaphore whose identifier is passed. This call never blocks.
- If there’s at least one process waiting on this semaphore, semup() causes one waiting
-  process to be awakened. The call returns 1 if successful, 0 otherwise.
-Note: while a semaphore can’t be initialized outside the range −1000≤value≤1000, it may 
-be incremented (or decremented) to a value outside this range, up to ±106. If the semup()
- call would result in a value above 106, return 0 and set the error to EOVERFLOW.
-*/
+
+
+
 
 PUBLIC int do_semdown() {
     int sem;
@@ -174,6 +197,8 @@ PUBLIC int do_semdown() {
         /* add the process id of the current process to the list of waiting processes
             and put the process to sleep
         */
+        thisSem->plLEN += 1;
+
         pLIST* newPLnode = (pLIST*) malloc(sizeof(pLIST));
         newPLnode->pCUR  = (struct mproc*)malloc(sizeof(struct mproc));
         newPLnode->pCUR  = mp;
@@ -201,13 +226,3 @@ PUBLIC int do_semdown() {
 
     return 1;   //return 1 on success
 }
-
-/*
-    This call does DOWN on the semaphore whose identifier is passed. If the semaphore 
-    value would go below zero, the call blocks until the value goes above zero again.
-    The call returns 1 if successful, 0 otherwise.
-    Note: while a semaphore can’t be initialized outside the range −1000≤value≤1000,
-    it may be decremented (or incremented) to a value outside this range, up to ±106.
-    If the semup() call would result in a value below -106, return 0 and set the error to EOVERFLOW.
-*/
-//in seminit, shouldn't plist-Next be set to null
