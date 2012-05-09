@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <string.h>
+#include <stdlib.h>
 #include <minix/com.h>
 #include "param.h"
 #include "mproc.h"
@@ -131,8 +132,8 @@ PUBLIC int do_semup() {
 
             //setreply
 
-            free(tempNode->pCUR);
-            free(tempNode);
+//            free(tempNode->pCUR);
+//            free(tempNode);
         }
     }
 
@@ -147,7 +148,7 @@ be incremented (or decremented) to a value outside this range, up to ±106. If t
  call would result in a value above 106, return 0 and set the error to EOVERFLOW.
 */
 
-PUBLIC int do_semdown(sem) {
+PUBLIC int do_semdown() {
     int sem;
     sem = m_in.m1_i1;
 
@@ -158,10 +159,10 @@ PUBLIC int do_semdown(sem) {
 
     semaphore* thisSem = semLIST[sem];
 
-    if(this->value == semLowerLimit)
+    if(thisSem->value == semLowerLimit)
     { //check if the semaphore is already at the lower end of the allowed limit
         printf("EOVERFLOW\n");
-        //set the error code to EOVERFLOW
+        errno = EOVERFLOW;
         return 0;
     }
     else {
@@ -191,14 +192,11 @@ PUBLIC int do_semdown(sem) {
                 existingLastNode = existingLastNode->next;
             }
 
-            existingLastNode->next = thisPLnode;
+            existingLastNode->next = newPLnode;
         }
 
         mp->mp_flags |= PAUSED;
-        setreply(who_p, SUSPEND);
-        sendreply();
-        //send signal to SUSPEND
-
+        return SUSPEND;
     }
 
     return 1;   //return 1 on success
