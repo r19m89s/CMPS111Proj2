@@ -30,6 +30,7 @@ typedef struct semaphore{
     int    value;
     pLIST *ProcessList;
     int   plLEN;
+    int init;
 } semaphore;
 
 
@@ -104,7 +105,7 @@ PUBLIC int do_semfree(){
      }else {
         if (semLIST[sem]->value > 0) return EBUSY;
         else {
-            free ((semaphore*)semLIST[sem]->ProcessList);
+            semLIST[sem]->init = 0;
             return 1;
         }
     }
