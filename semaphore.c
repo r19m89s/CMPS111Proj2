@@ -135,7 +135,7 @@ PUBLIC int do_semup() {
     if(thisSem->value == semUpperLimit)
     { //check if the semaphore is already at the upper end of the allowed limit
         printf("EOVERFLOW\n");
-        //figure out how to set an error
+        errno = EOVERFLOW;
         return 0;
     }
     else {
@@ -159,7 +159,11 @@ PUBLIC int do_semup() {
             // give signal to tempNode->pCUR to wake up;
             tempNode->pCUR->mp_flags |= UNPAUSED;
 
-//            setreply(tempNode->pCUR->p)
+            if(pm_isokendpt(who_e, &who_p) != OK)
+                  panic("PM got message from invalid endpoint: %d", who_e);
+
+
+            setreply(who_p, OK);
 
             free(tempNode->pCUR);
             free(tempNode);
@@ -195,10 +199,16 @@ PUBLIC int do_semdown() {
 
     if(thisSem->value < 0)
     {
-        /* add the process id of the current process to the list of waiting processes
+        /* add the current process to the list of waiting processes
             and put the process to sleep
         */
         thisSem->plLEN += 1;
+        
+        if(plLen > 1000)
+        {
+            fprintf(stderr, "Error: More than 1000 processes waiting on a semaphore.\n");
+            exit(-1);
+        }
 
         pLIST* newPLnode = (pLIST*) malloc(sizeof(pLIST));
         newPLnode->pCUR  = (struct mproc*)malloc(sizeof(struct mproc));
