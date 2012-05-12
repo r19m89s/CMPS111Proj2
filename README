@@ -1,0 +1,47 @@
+README
+
+    CMPS 111 Project 2
+    Group Memebers
+            Kumar Summan            ksumman@ucsc.edu
+            Rosalie Stevenson       rmsteven@ucsc.edu
+            Simon Tan               stan2@ucsc.edu
+
+==========================================================================
+
+Deliverables included:
+    file Design.pdf
+        Contains all the design information for semaphores and locks and conditions.
+
+    directory "User-Level"
+            - lockcond.h
+            - lockcond.c
+
+    directory "Synchronization Problems"
+            RWDesign.pdf - Design for Reader Writer Synchronization problem
+            RWsync.c
+            - AlienDesign.pdf for “Raising kids on an alien world” synchronization problem.
+            AlienWorld.c
+
+    directory "PM-Code"
+
+        //here, tell where each one of the files need to go
+            semaphore.c
+            proto.h
+            table.c
+            callnr.h
+            __seminit.c
+            __semvalue.c
+            __semup.c
+            __semdown.c
+            __semfree.c
+
+    directory "TESTIN"
+            seminitTEST.c
+            seminitTEST2.c
+            seminitTEST3.c
+            semupTEST.c
+            Makefile
+
+            In this directory, use “make” command to build executables for all of the test files.
+            Each executable then run any one of the executables to test the functionality of semaphores.
+ 
