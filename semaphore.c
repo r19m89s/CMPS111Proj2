@@ -86,7 +86,7 @@ PUBLIC int do_semvalue(){
         if (val < 0){
             return -val;
         }else {
-            return 0;
+            return 10001;
         }
     }
 }
