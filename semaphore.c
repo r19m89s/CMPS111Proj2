@@ -2,7 +2,6 @@
     This file handles system calls for semaphore operations
 */
 
-
 #include "pm.h"
 #include <signal.h>
 #include <stdlib.h>
@@ -19,12 +18,10 @@
 
 /* Global variables */
 
-
 typedef struct pLIST{
     struct mproc*  pCUR;
     struct pLIST *next;
 }pLIST;
-
 
 typedef struct semaphore{
     int    value;
@@ -33,44 +30,44 @@ typedef struct semaphore{
     int init;
 } semaphore;
 
-
 semaphore *semLIST[100];
 
 PUBLIC int do_seminit( ){
     int sem = m_in.m1_i1;
     int value = m_in.m2_i2;
-    printf("sem: %d, value: %d\n", sem, value);
-    int ind;
+    int ind = 0;
     semaphore *semi;
     int blah = 0;
     int retVAL = 0;
     int size = sizeof(semLIST)/sizeof(semaphore);
-    if (size == 100){
-       semi = semLIST[blah];
-       int isFULL = 1;
-       while (semi != NULL){
-         if (semi->value == 0){
-            isFULL = 0;
-            ind = blah;
-        }
+    semi = semLIST[blah];
+    int isFULL = 1;
+    while ((&semi != NULL)&&(semLIST[sem]->init==1)){
         blah++;
+        ind = blah;
         semi = semLIST[blah];
-       }
-       if (isFULL == 1){ printf("EAGAIN\n"); return EAGAIN;}
-    }else if (sem < 0 || sem >= 100){
+    }
+    if ((isFULL == 1)&&(ind == 1000)){ printf("EAGAIN\n"); return EAGAIN;}
+    if (sem < 0 || sem >= 100){
         printf("EINVAL\n");
         return EINVAL;
-    }else if ((semi != NULL)&&(semi->value != 0)){
-        printf("EEXIST\n");
-        return EEXIST;
     }
     else if (sem != 0){
+        if ((&semLIST[sem] != NULL)&&(semLIST[sem]->init == 1)){
+            printf("EEXIST\n");
+            return EEXIST;
+        }
+        semLIST[sem] = (semaphore*)malloc(sizeof(semaphore));
         semLIST[sem]->value = value;
         semLIST[sem]->plLEN = 0;
+        semLIST[sem]->init = 1;
         retVAL = sem;
     }else {
+        semLIST[ind] = (semaphore*)malloc(sizeof(semaphore));
         semLIST[ind]->value = value;
+        semLIST[ind]->init = 1;
         semLIST[ind]->plLEN = 0;
+        printf ("ind: %d\n", ind);
         retVAL = ind;
     }
     return retVAL;
@@ -80,7 +77,7 @@ PUBLIC int do_seminit( ){
 PUBLIC int do_semvalue(){
     int sem = m_in.m1_i1;
     if(&semLIST[sem] == NULL) return 0x8000000;
-    int val = semLIST[sem]->plLEN;
+    int val = semLIST[sem]->value;
     int min =(-10 ^ 6);
     int max = (10 ^ 6);
     if ((val <= min)||(val >= max)){
@@ -124,14 +121,11 @@ be incremented (or decremented) to a value outside this range, up to ±106. If t
 PUBLIC int do_semup() {
     int sem;
     sem = m_in.m1_i1;
-
     if (sem < 0 || sem >= 100) {
         printf("EINVAL\n");
         return EINVAL;
     }
-
     semaphore* thisSem = semLIST[sem];
-
     if(thisSem->value == semUpperLimit)
     { //check if the semaphore is already at the upper end of the allowed limit
         printf("EOVERFLOW\n");
@@ -141,17 +135,13 @@ PUBLIC int do_semup() {
     else {
         thisSem->value += 1;
     }
-
-    if(thisSem->value <= 0)
-    {
+    if(thisSem->value <= 0){
         /*
             get the process at the beginning of the waiting list
                 and wake it up.
         */
         thisSem->plLEN -= 1;
-
-        if(thisSem->ProcessList != NULL)
-        {
+        if(thisSem->ProcessList != NULL){
             pLIST *tempNode = thisSem->ProcessList;
 
             thisSem->ProcessList = thisSem->ProcessList->next;
@@ -174,19 +164,15 @@ PUBLIC int do_semup() {
 }
 
 
-
-
 PUBLIC int do_semdown() {
     int sem;
     sem = m_in.m1_i1;
-
     if (sem < 0 || sem >= 100) {
         printf("EINVAL\n");
         return EINVAL;
     }
-
     semaphore* thisSem = semLIST[sem];
-
+    printf("thisSem->value: %d\n", thisSem->value);
     if(thisSem->value == semLowerLimit)
     { //check if the semaphore is already at the lower end of the allowed limit
         printf("EOVERFLOW\n");
@@ -196,7 +182,6 @@ PUBLIC int do_semdown() {
     else {
         thisSem->value -= 1;
     }
-
     if(thisSem->value < 0)
     {
         /* add the current process to the list of waiting processes
@@ -204,7 +189,7 @@ PUBLIC int do_semdown() {
         */
         thisSem->plLEN += 1;
         
-        if(plLen > 1000)
+        if(thisSem->plLEN > 1000)
         {
             fprintf(stderr, "Error: More than 1000 processes waiting on a semaphore.\n");
             exit(-1);
